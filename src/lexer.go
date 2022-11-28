@@ -7,11 +7,14 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 )
 
 //import "github.com/go-errors/errors"
+
+// CURRENT STATUS: UNUSABLE/NOT COMPILEABLE/DOES NOT WORK
+// REASON: UPDATING CODE, removing for-loops and improving efficiency 
+// TODO: add CurrentState field to the 
 
 // Log types used to log information used in the compilation phase
 const (
@@ -30,7 +33,7 @@ TODO: fix many notable inconsitencies with the paralell token analyzing
 */
 func main() {
 
-	lexer := new_lexer("var no=0;var y=0;")
+	lexer := new_lexer("var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;var no=0;var y=0;var z=0;func j(){};")
 
 	lexer = lexer.add_rule(func(lex Lexer) Lexer {
 		//fmt.Println("VAR");
@@ -101,16 +104,13 @@ type Lexer struct {
 	position       int
 	move           int
 	program        string
-
-	// Fields for rule handling
-	rules   []func(Lexer) Lexer
-	finish  int
-	success bool
-	check   bool
-
-	// Fields for error handling
-	start_called bool
-	end_called   bool
+	rules          []func(Lexer) Lexer
+	finish         int
+	success        bool
+	check          bool
+	check_ref      *bool
+	start_called   bool
+	end_called     bool
 }
 
 /*
@@ -157,7 +157,7 @@ func (lexer *Lexer) init() {
 	for rule_index := 0; rule_index < len(lexer.rules); rule_index++ {
 
 		go func(r_index int, lexer *Lexer) {
-			runtime.LockOSThread()
+
 			// we usually try to avoid pointers, but it is needed to edit the lexer in a coroutine, since we cannot return anything
 			// (lex_out = copy of the origional lexer)
 			lex_out := *lexer
@@ -171,6 +171,7 @@ func (lexer *Lexer) init() {
 					// fmt.Println("LEX STATE: ", *lexer)
 					// fmt.Println("CLONE STATE: ", lex_out)
 					fmt.Println("CALLS: ", calls)
+
 					// runs/calls the rule
 					lex_out = lex_rule(lex_out)
 					if lex_out.continue_lexer {
@@ -253,6 +254,8 @@ func (lexer *Lexer) walk(run func()) {
 
 		}
 
+		lexer.step(); 
+
 	}
 }
 
@@ -285,6 +288,10 @@ func (lexer Lexer) start() Lexer {
 	lexer.continue_lexer = true
 	lexer.move = lexer.position
 	return lexer
+}
+
+func (lexer Lexer) step() {
+	lexer.position+=1; 
 }
 
 /*
@@ -326,27 +333,11 @@ func (lexer Lexer) next_string(get string, log int) Lexer {
 		 * where n is the max number of charecters in the line
 		 * x is the length of the stop_code list
 		 */
-		for inc := 0; inc < len(lexer.program); inc++ {
 
-			if lexer.position+1 < len(lexer.program) {
-
-				if lexer.stop_code[lexer.program[lexer.position:lexer.position+1]] == 1 {
-
-					eol_list_item := lexer.program[lexer.position : lexer.position+1]
-					// if logging is activated, then add to the pass_data
-					if log != LogTypeNone && (get == eol_list_item || get == "EoF") {
-
-						lexer.pass_data = append(lexer.pass_data, format_log(get, logger+get, log)[:]...)
-						lexer.continue_lexer = true
-						lexer.position += len(eol_list_item)
-
-					}
-					return lexer
-				}
-			}
+		if lexer.position+1 < len(lexer.program) {
 			// this only executes if EoF is detected
 			if lexer.position+len(get) > len(lexer.program) {
-				break
+				return lexer;
 			}
 
 			//PRINT STATEMENT FOR DEBUG
@@ -374,24 +365,21 @@ func (lexer Lexer) next_string(get string, log int) Lexer {
 				// PRINT STATEMENT FOR DEBUG
 				//fmt.Println("SUCCESS ",get);
 				//fmt.Println("AFTER JMP: ", lexer.position)
-
-				break
+				return lexer; 
 			}
 
 			// logs data down
 			if log != LogTypeNone {
 				logger += string(lexer.program[lexer.position])
 			}
+		
 			// next char
 			lexer.position += 1
 
 		}
-
 	}
-
 	return lexer
 }
-
 /*
  * lexer method
  * next_string
